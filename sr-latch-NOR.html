@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SR Latch Simulator</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#6b7280; --line:#d9dde3;
+    --hi:#16a34a; --lo:#94a3b8; --accent:#2563eb; --warn:#dc2626; --row:#fef3c7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14171c; --card:#1d2128; --ink:#e7eaf0; --muted:#9aa3b2; --line:#333a45;
+      --hi:#22c55e; --lo:#4b5563; --accent:#60a5fa; --warn:#f87171; --row:#3f3415; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  main{max-width:1000px;margin:0 auto;padding:20px}
+  h1{font-size:1.4rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:1rem;margin:0 0 12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .wide{grid-column:1/-1}
+  .btns{display:flex;gap:12px;justify-content:center;margin-bottom:16px}
+  button.in{min-width:110px;padding:14px;border-radius:10px;border:2px solid var(--line);background:var(--card);color:var(--ink);font-size:1.15rem;font-weight:700;cursor:pointer}
+  button.in.h{border-color:var(--hi);background:color-mix(in srgb,var(--hi) 18%,transparent)}
+  .outs{display:flex;gap:32px;justify-content:center}
+  .led{display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700;font-size:1.1rem}
+  .bulb{width:52px;height:52px;border-radius:50%;background:var(--lo);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;transition:.15s}
+  .bulb.h{background:var(--hi);box-shadow:0 0 16px var(--hi)}
+  .msg{min-height:1.5em;font-weight:600;margin-top:14px;text-align:center}
+  .msg.bad{color:var(--warn)}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+  th{background:color-mix(in srgb,var(--line) 40%,transparent)}
+  tr.cur td{background:var(--row);font-weight:700}
+  .note{font-size:.9rem;color:var(--muted);margin-top:10px}
+  button.small{float:right;padding:4px 10px;font-size:.8rem;border:none;border-radius:8px;background:var(--lo);color:#fff;font-weight:700;cursor:pointer}
+  svg text{font-family:system-ui,sans-serif}
+</style>
+</head>
+<body>
+<main>
+  <h1>SR Latch Simulator</h1>
+  <p class="sub">Two cross-coupled NOR gates with no clock. Click S or R, and the outputs change right away.</p>
+  <p class="sub"><b>S</b> stands for <b>Set</b>: making S = 1 sets the output to Q = 1. <b>R</b> stands for <b>Reset</b>: making R = 1 resets the output to Q = 0.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Inputs and outputs</h2>
+      <div class="btns">
+        <button class="in" id="sBtn">S = 0</button>
+        <button class="in" id="rBtn">R = 0</button>
+      </div>
+      <div class="btns"><button class="in" id="bothBtn" style="min-width:0;font-size:.95rem">Set both S and R to 0</button></div>
+      <div class="outs">
+        <div class="led"><div class="bulb" id="qLed">0</div>Q</div>
+        <div class="led"><div class="bulb" id="qbLed">1</div>Q̅</div>
+      </div>
+      <div class="msg" id="msg">Hold: the latch remembers Q = 0.</div>
+    </section>
+
+    <section class="card">
+      <h2>Circuit</h2>
+      <svg id="circ" viewBox="0 0 360 230" width="100%"></svg>
+    </section>
+
+    <section class="card">
+      <h2>Truth table</h2>
+      <table id="tbl"></table>
+      <p class="note">The highlighted row matches the current inputs. Q = NOR(R, Q̅) and Q̅ = NOR(S, Q).</p>
+    </section>
+
+    <section class="card">
+      <h2>Things to try</h2>
+      <p class="note" style="margin-top:0">
+        1. Set S = 1, then S = 0. Q stays 1. This is the 1-bit memory.<br>
+        2. Set R = 1, then R = 0. Q stays 0. This is the 1-bit memory.<br>
+        3. Set S = R = 1. Q and Q̅ are both 0, so Q̅ is no longer the complement of Q.<br>
+        4. From S = R = 1, click "Set both S and R to 0." The final state is unpredictable (a race condition).
+      </p>
+    </section>
+
+  </div>
+</main>
+
+<script>
+let S=0, R=0, Q=0, QB=1;
+const $=id=>document.getElementById(id);
+const ROWS=[
+  [0,0,"Q","Q̅","Hold (1-bit memory)"],
+  [0,1,"0","1","Reset"],
+  [1,0,"1","0","Set"],
+  [1,1,"0","0","Invalid"]
+];
+
+function update(prevS, prevR){
+  let msg="", bad=false;
+  if(S&&R){ Q=0; QB=0; msg="Invalid: Q and Q̅ are both 0."; bad=true; }
+  else if(S){ Q=1; QB=0; msg="Set: Q = 1."; }
+  else if(R){ Q=0; QB=1; msg="Reset: Q = 0."; }
+  else {
+    if(Q===0 && QB===0){
+      // leaving the invalid state: race
+      if(prevS&&prevR){ Q=Math.random()<.5?1:0; QB=1-Q;
+        msg="Race! Both inputs dropped together. The latch settled to Q = "+Q+" by chance."; bad=true; }
+      else { Q = prevS?1:0; QB=1-Q; msg="Hold: the latch remembers Q = "+Q+"."; }
+    } else msg="Hold: the latch remembers Q = "+Q+".";
+  }
+  $("msg").textContent=msg; $("msg").className="msg"+(bad?" bad":"");
+  render();
+}
+
+function render(){
+  const sb=$("sBtn"), rb=$("rBtn");
+  sb.textContent="S = "+S; sb.classList.toggle("h",!!S);
+  rb.textContent="R = "+R; rb.classList.toggle("h",!!R);
+  $("qLed").className="bulb"+(Q?" h":""); $("qLed").textContent=Q;
+  $("qbLed").className="bulb"+(QB?" h":""); $("qbLed").textContent=QB;
+  let h="<tr><th>S</th><th>R</th><th>Q</th><th>Q̅</th><th>Action</th></tr>";
+  ROWS.forEach(r=>{
+    const cur=r[0]===S&&r[1]===R;
+    h+="<tr class='"+(cur?"cur":"")+"'><td>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td><td>"+r[3]+"</td><td>"+r[4]+"</td></tr>";
+  });
+  $("tbl").innerHTML=h;
+  drawCircuit();
+}
+
+const col=v=>v?"var(--hi)":"var(--lo)";
+
+function nor(x,y){ // gate body from x to x+70, center y
+  return `<path d="M${x},${y-28} Q${x+18},${y} ${x},${y+28} Q${x+45},${y+28} ${x+70},${y} Q${x+45},${y-28} ${x},${y-28}Z"
+    fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>
+    <circle cx="${x+76}" cy="${y}" r="6" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>`;
+}
+
+function drawCircuit(){
+  const g1y=60, g2y=170, gx=130, w=4;
+  let s="";
+  // R -> top gate (Q), S -> bottom gate (Q̅)
+  s+=`<line x1="20" y1="${g1y-14}" x2="${gx+8}" y2="${g1y-14}" stroke="${col(R)}" stroke-width="${w}"/>
+      <text x="20" y="${g1y-22}" fill="var(--ink)" font-weight="700" font-size="16">R = ${R}</text>`;
+  s+=`<line x1="20" y1="${g2y+14}" x2="${gx+8}" y2="${g2y+14}" stroke="${col(S)}" stroke-width="${w}"/>
+      <text x="20" y="${g2y+38}" fill="var(--ink)" font-weight="700" font-size="16">S = ${S}</text>`;
+  // outputs
+  s+=`<line x1="${gx+82}" y1="${g1y}" x2="340" y2="${g1y}" stroke="${col(Q)}" stroke-width="${w}"/>
+      <text x="300" y="${g1y-10}" fill="var(--ink)" font-weight="700" font-size="16">Q = ${Q}</text>`;
+  s+=`<line x1="${gx+82}" y1="${g2y}" x2="340" y2="${g2y}" stroke="${col(QB)}" stroke-width="${w}"/>
+      <text x="300" y="${g2y+24}" fill="var(--ink)" font-weight="700" font-size="16">Q̅ = ${QB}</text>`;
+  // feedback drawn as an X: Q -> lower gate, Q̅ -> upper gate
+  s+=`<polyline points="250,${g1y} 250,${g1y+25} 100,${g2y-25} 100,${g2y-14} ${gx+8},${g2y-14}" fill="none" stroke="${col(Q)}" stroke-width="${w}" stroke-linejoin="round"/>
+      <circle cx="250" cy="${g1y}" r="5" fill="${col(Q)}"/>`;
+  s+=`<polyline points="250,${g2y} 250,${g2y-25} 100,${g1y+25} 100,${g1y+14} ${gx+8},${g1y+14}" fill="none" stroke="${col(QB)}" stroke-width="${w}" stroke-linejoin="round"/>
+      <circle cx="250" cy="${g2y}" r="5" fill="${col(QB)}"/>`;
+  s+=nor(gx,g1y)+nor(gx,g2y);
+  s+=`<text x="${gx+22}" y="${g1y+5}" fill="var(--muted)" font-size="12">NOR</text>
+      <text x="${gx+22}" y="${g2y+5}" fill="var(--muted)" font-size="12">NOR</text>`;
+  $("circ").innerHTML=s;
+}
+
+
+$("sBtn").onclick=()=>{const ps=S,pr=R; S^=1; update(ps,pr);};
+$("rBtn").onclick=()=>{const ps=S,pr=R; R^=1; update(ps,pr);};
+$("bothBtn").onclick=()=>{const ps=S,pr=R; S=0; R=0; update(ps,pr);};
+render();
+</script>
+</body>
+</html>
