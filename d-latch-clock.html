@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clocked D Latch Simulator</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#6b7280; --line:#d9dde3;
+    --hi:#16a34a; --lo:#94a3b8; --accent:#2563eb; --warn:#dc2626; --row:#fef3c7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14171c; --card:#1d2128; --ink:#e7eaf0; --muted:#9aa3b2; --line:#333a45;
+      --hi:#22c55e; --lo:#4b5563; --accent:#60a5fa; --warn:#f87171; --row:#3f3415; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  main{max-width:1000px;margin:0 auto;padding:20px}
+  h1{font-size:1.4rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:1rem;margin:0 0 12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .wide{grid-column:1/-1}
+  .btns{display:flex;gap:12px;justify-content:center;margin-bottom:16px}
+  button.in{min-width:110px;padding:14px;border-radius:10px;border:2px solid var(--line);background:var(--card);color:var(--ink);font-size:1.15rem;font-weight:700;cursor:pointer}
+  button.in.h{border-color:var(--hi);background:color-mix(in srgb,var(--hi) 18%,transparent)}
+  .outs{display:flex;gap:32px;justify-content:center}
+  .led{display:flex;flex-direction:column;align-items:center;gap:4px;font-weight:700;font-size:1.1rem}
+  .bulb{width:52px;height:52px;border-radius:50%;background:var(--lo);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;transition:.15s}
+  .bulb.h{background:var(--hi);box-shadow:0 0 16px var(--hi)}
+  .msg{min-height:1.5em;font-weight:600;margin-top:14px;text-align:center}
+  .msg.bad{color:var(--warn)}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+  th{background:color-mix(in srgb,var(--line) 40%,transparent)}
+  tr.cur td{background:var(--row);font-weight:700}
+  .note{font-size:.9rem;color:var(--muted);margin-top:10px}
+  button.small{float:right;padding:4px 10px;font-size:.8rem;border:none;border-radius:8px;background:var(--lo);color:#fff;font-weight:700;cursor:pointer}
+  svg text{font-family:system-ui,sans-serif}
+  #timing{width:100%;height:auto;display:block}
+  button.ctl{padding:10px 14px;border-radius:10px;border:none;font-weight:700;cursor:pointer;font-size:1rem;color:#fff;background:var(--accent)}
+  button.in:disabled{cursor:default}
+  button.ctl:disabled{opacity:.4;cursor:default}
+  select{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:1rem}
+  .top .card{padding:10px 14px}
+  .top .card h2{margin-bottom:6px}
+  .top button.in{min-width:90px;padding:8px 10px;font-size:1rem}
+  .top button.ctl{padding:7px 12px;font-size:.95rem}
+  .top .bulb{width:38px;height:38px;font-size:1rem}
+  .top .btns{margin-bottom:8px}
+  .top .msg{margin-top:6px;min-height:1.2em}
+  .top .outs{margin-top:2px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Clocked D Latch Simulator</h1>
+  <p class="sub">Here a clock drives the latch's enable input. While CLK = 1, Q follows D. While CLK = 0, Q holds its value.</p>
+
+  <div class="grid top">
+    <section class="card">
+      <h2>Symbol</h2>
+      <svg id="circ" viewBox="0 0 300 160" width="100%" style="max-width:260px;display:block;margin:0 auto"></svg>
+    </section>
+
+    <section class="card">
+      <h2>Inputs and outputs</h2>
+      <div class="btns">
+        <button class="in" id="dBtn">D = 0</button>
+        <button class="in" id="cBtn" disabled>CLK = 0</button>
+      </div>
+      <div class="btns">
+        <button class="ctl" id="runBtn">Pause clock</button>
+        <select id="speed" aria-label="Clock speed">
+          <option value="4000">Slow clock</option>
+          <option value="2000" selected>Medium clock</option>
+          <option value="1000">Fast clock</option>
+        </select>
+      </div>
+      <div class="outs">
+        <div class="led"><div class="bulb" id="qLed">0</div>Q</div>
+        <div class="led"><div class="bulb" id="qbLed">1</div>Q̅</div>
+      </div>
+      <div class="msg" id="msg"></div>
+    </section>
+  </div>
+
+  <div class="grid" style="margin-top:16px">
+    <section class="card wide">
+      <h2>Timing diagram</h2>
+      <svg id="timing" viewBox="0 0 960 150"></svg>
+      <p class="note">Shaded bands show when CLK = 1. Inside a band Q follows D; outside it Q holds.</p>
+    </section>
+
+
+    <section class="card wide">
+      <h2>Things to try</h2>
+      <p class="note" style="margin-top:0">
+        1. While CLK = 1, click D a few times. Q follows every change.<br>
+        2. While CLK = 0, click D. Q doesn't change. This is the 1-bit memory. When CLK goes back to 1, Q takes the new value of D.<br>
+        3. Change D just before CLK falls. Q keeps the value D had at that moment.<br>
+        4. Click "Pause clock" to freeze the clock and the timing diagram. Then use the CLK button to step the clock by hand.
+      </p>
+    </section>
+  </div>
+</main>
+
+<script>
+let D=0, C=0, Q=0, running=true, half=1000, lastFlip=0;
+const N=240, DT=50; let hist=[];
+const $=id=>document.getElementById(id);
+const col=v=>v?"var(--hi)":"var(--lo)";
+
+function logic(){ if(C) Q=D; render(); }
+
+function render(){
+  const db=$("dBtn"), cb=$("cBtn");
+  db.textContent="D = "+D; db.classList.toggle("h",!!D);
+  cb.textContent="CLK = "+C; cb.classList.toggle("h",!!C); cb.disabled=running;
+  $("runBtn").textContent = running ? "Pause clock" : "Run clock";
+  $("qLed").className="bulb"+(Q?" h":""); $("qLed").textContent=Q;
+  $("qbLed").className="bulb"+(Q?"":" h"); $("qbLed").textContent=1-Q;
+  $("msg").textContent = C ? "CLK = 1: Q follows D (Q = "+Q+")." : "CLK = 0: Hold. The latch remembers Q = "+Q+".";
+  drawSym();
+}
+
+function ln(x1,y1,x2,y2,v){ return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col(v)}" stroke-width="4" stroke-linecap="round"/>`; }
+function txt(x,y,t,sz=15,c="var(--ink)"){ return `<text x="${x}" y="${y}" fill="${c}" font-weight="700" font-size="${sz}">${t}</text>`; }
+
+function drawSym(){
+  const x0=110,y0=20,w=100,h=120;
+  let s=`<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="6" fill="none" stroke="var(--ink)" stroke-width="2"/>`;
+  s+=ln(20,50,x0,50,D)+txt(x0+10,55,"D",16)+txt(20,40,"D = "+D,14,"var(--muted)");
+  s+=ln(20,110,x0,110,C)+txt(x0+10,115,"CLK",15)+txt(20,100,"CLK = "+C,14,"var(--muted)");
+  s+=ln(x0+w,50,290,50,Q)+txt(x0+w-24,55,"Q",16)+txt(232,40,"Q = "+Q,14,"var(--muted)");
+  s+=ln(x0+w,110,290,110,1-Q)+txt(x0+w-24,115,"Q̅",16)+txt(232,132,"Q̅ = "+(1-Q),14,"var(--muted)");
+  $("circ").innerHTML=s;
+}
+
+function drawTiming(){
+  const sigs=["C","D","Q"], labels=["CLK","D","Q"], colors=["var(--muted)","var(--hi)","var(--accent)"];
+  const rowH=85, top=12, left=70, W=960, step=(W-left-10)/N;
+  const H=top+sigs.length*rowH+6;
+  $("timing").setAttribute("viewBox",`0 0 ${W} ${H}`);
+  let g="";
+  let start=null;
+  hist.forEach((p,i)=>{
+    if(p.C && start===null) start=i;
+    if((!p.C || i===hist.length-1) && start!==null){
+      const end = p.C ? i+1 : i;
+      g+=`<rect x="${left+start*step}" y="${top}" width="${(end-start)*step}" height="${sigs.length*rowH-6}" fill="var(--hi)" opacity=".09"/>`;
+      start=null;
+    }
+  });
+  sigs.forEach((k,r)=>{
+    const yb=top+r*rowH+rowH-14, yt=top+r*rowH+14;
+    g+=`<text x="4" y="${(yb+yt)/2+7}" fill="var(--ink)" font-size="20" font-weight="700">${labels[r]}</text>
+        <line x1="${left}" y1="${yb}" x2="${W-10}" y2="${yb}" stroke="var(--line)"/>`;
+    let d="", prev=null;
+    hist.forEach((p,i)=>{
+      const y=p[k]?yt:yb, x=left+i*step;
+      d+= i===0?`M${x},${y}`:`L${x},${prev}L${x},${y}`; prev=y;
+    });
+    if(hist.length) d+=`L${left+hist.length*step},${prev}`;
+    g+=`<path d="${d}" fill="none" stroke="${colors[r]}" stroke-width="3.5"/>`;
+  });
+  $("timing").innerHTML=g;
+}
+
+function tick(){
+  const now=performance.now();
+  if(running && now-lastFlip>=half){ C^=1; lastFlip=now; logic(); }
+  if(running){ hist.push({C,D,Q}); if(hist.length>N) hist.shift(); drawTiming(); }
+}
+function stepHist(){
+  for(let i=0;i<12;i++){ hist.push({C,D,Q}); if(hist.length>N) hist.shift(); }
+  drawTiming();
+}
+
+$("dBtn").onclick=()=>{ D^=1; logic(); if(!running) stepHist(); };
+$("cBtn").onclick=()=>{ if(!running){ C^=1; logic(); stepHist(); } };
+$("runBtn").onclick=()=>{ running=!running; lastFlip=performance.now(); render(); };
+$("speed").onchange=e=>{ half=+e.target.value/2; };
+lastFlip=performance.now();
+logic();
+setInterval(tick, DT);
+</script>
+</body>
+</html>
