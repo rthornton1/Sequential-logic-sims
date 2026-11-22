@@ -50,7 +50,7 @@
   .top button.ctl{padding:7px 12px;font-size:.95rem}
   .top .bulb{width:38px;height:38px;font-size:1rem}
   .top .btns{margin-bottom:8px}
-  .top .msg{margin-top:6px;min-height:1.2em}
+  .top .msg{margin-top:6px;min-height:2.9em}
   .top .outs{margin-top:2px}
 </style>
 </head>
@@ -69,7 +69,6 @@
       <h2>Inputs and outputs</h2>
       <div class="btns">
         <button class="in" id="dBtn">D = 0</button>
-        <button class="in" id="cBtn" disabled>CLK = 0</button>
       </div>
       <div class="btns">
         <button class="ctl" id="runBtn">Pause clock</button>
@@ -100,7 +99,7 @@
       <p class="note" style="margin-top:0">
         1. While CLK = 1, click D a few times. Q follows every change.<br>
         2. While CLK = 0, click D. Q doesn't change. This is the 1-bit memory. When CLK goes back to 1, Q takes the new value of D.<br>
-        3. Click "Pause clock" to freeze the clock and the timing diagram. Then use the CLK button to step the clock by hand.
+        3. Click "Pause clock" to freeze the timing diagram so you can study it.
       </p>
     </section>
   </div>
@@ -115,9 +114,8 @@ const col=v=>v?"var(--hi)":"var(--lo)";
 function logic(){ if(C) Q=D; render(); }
 
 function render(){
-  const db=$("dBtn"), cb=$("cBtn");
+  const db=$("dBtn");
   db.textContent="D = "+D; db.classList.toggle("h",!!D);
-  cb.textContent="CLK = "+C; cb.classList.toggle("h",!!C); cb.disabled=running;
   $("runBtn").textContent = running ? "Pause clock" : "Run clock";
   $("qLed").className="bulb"+(Q?" h":""); $("qLed").textContent=Q;
   $("qbLed").className="bulb"+(Q?"":" h"); $("qbLed").textContent=1-Q;
@@ -178,8 +176,7 @@ function stepHist(){
   drawTiming();
 }
 
-$("dBtn").onclick=()=>{ D^=1; logic(); if(!running) stepHist(); };
-$("cBtn").onclick=()=>{ if(!running){ C^=1; logic(); stepHist(); } };
+$("dBtn").onclick=()=>{ D^=1; logic(); };
 $("runBtn").onclick=()=>{ running=!running; lastFlip=performance.now(); render(); };
 $("speed").onchange=e=>{ half=+e.target.value/2; };
 lastFlip=performance.now();
